@@ -64,10 +64,10 @@ async function main() {
   //
   // Broadcasts the "viewed" message to other microservices.
   //
-  function broadcastViewedMessage(messageChannel, videoPath) {
+  function broadcastViewedMessage(messageChannel, videoId) {
     console.log(`Publishing message on "viewed" exchange.`);
 
-    const msg = { videoPath: videoPath };
+    const msg = { videoId: videoId };
     const jsonMsg = JSON.stringify(msg);
     messageChannel.publish("viewed", "", Buffer.from(jsonMsg)); // Publishes message to the "viewed" exchange.
   }
@@ -93,9 +93,12 @@ async function main() {
       "Content-Type": "video/mp4",
     });
 
+    // Construct data for stream
     fs.createReadStream(videoPath).pipe(res);
-
-    broadcastViewedMessage(messageChannel, videoPath); // Sends the "viewed" message to indicate this video has been watched.
+    
+    // Make broadcastmessage only when range is present in header. (It is a video stream)
+    if (req.headers.range != null)
+      broadcastViewedMessage(messageChannel, videoId); // Sends the "viewed" message to indicate this video has been watched.
   });
 
   app.listen(PORT, () => {

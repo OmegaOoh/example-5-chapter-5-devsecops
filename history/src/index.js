@@ -83,13 +83,11 @@ async function main() {
     // Start receiving messages from the anonymous queue.
     //
     await messageChannel.consume(queue, async (msg)=> {
-        console.log("Received a 'viewed' message");
-
         const parsedMsg = JSON.parse(msg.content.toString()); // Parse the JSON message.
         
-        await historyCollection.insertOne({ videoPath: parsedMsg.videoPath }); // Record the "view" in the database.
+        await historyCollection.insertOne({ videoId: parsedMsg.videoId }); // Record the "view" in the database.
 
-        console.log("Acknowledging message was handled.");
+        console.log(`Added video-${parsedMsg.videoId} to history`)
                 
         messageChannel.ack(msg); // If there is no error, acknowledge the message.
     });

@@ -66,27 +66,25 @@ async function main() {
 
         const parsedMsg = JSON.parse(msg.content.toString()); // Parse the JSON message.
 
-        const filePath = parsedMsg.videoPath;
-        // Strip into filename
-        const filename = filePath.split('/').pop();
+        const videoId = parsedMsg.videoId;
         // Check for video existence in db
-        const video = await videosCollection.findOne({ "video": filename });
+        const video = await videosCollection.findOne({ "video": videoId });
         if (video === null) {
           // Create new record.
-          await videosCollection.insertOne({ "video": filename, "views": 1 });
+          await videosCollection.insertOne({ "video": videoId, "views": 1 });
         } else {
           // Update views
-          await videosCollection.updateOne({ "video": filename }, { $inc: { "views": 1 } });
+          await videosCollection.updateOne({ "video": videoId }, { $inc: { "views": 1 } });
         }
         
         // Recommend most viewed video
-          const mostViewed = await videosCollection.find().sort({ "views": -1 }).limit(2).toArray();
-          if (mostViewed.length == 1 || mostViewed.video != filename )
-            console.log(`Recommended ${mostViewed[0].video}`);
-          else if (mostViewed.length > 1 )
-            console.log(`Recommended ${mostViewed[1].video}`);
-          else
-            console.log(`No recommendations available`);
+        const mostViewed = await videosCollection.find().sort({ "views": -1 }).limit(2).toArray();
+        if (mostViewed.length == 1 || mostViewed[0].video != videoId)
+          console.log(`recommendation video ${mostViewed[0].video}`);
+        else if (mostViewed.length > 1 )
+          console.log(`recommendation video ${mostViewed[1].video}`);
+        else
+          console.log(`No recommendations available`);
                 
         messageChannel.ack(msg); // If there is no error, acknowledge the message.
     };
