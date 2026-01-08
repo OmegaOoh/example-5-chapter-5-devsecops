@@ -1,68 +1,109 @@
 const express = require("express");
+const mongodb = require("mongodb");
 const fs = require("fs");
-const amqp = require('amqplib');
+const amqp = require("amqplib");
 
 if (!process.env.PORT) {
-    throw new Error("Please specify the port number for the HTTP server with the environment variable PORT.");
+  throw new Error(
+    "Please specify the port number for the HTTP server with the environment variable PORT.",
+  );
 }
 
 if (!process.env.RABBIT) {
-    throw new Error("Please specify the name of the RabbitMQ host using environment variable RABBIT");
+  throw new Error(
+    "Please specify the name of the RabbitMQ host using environment variable RABBIT",
+  );
+}
+
+if (!process.env.DBHOST) {
+  throw new Error(
+    "Please specify the database host using environment variable DBHOST.",
+  );
+}
+
+if (!process.env.DBNAME) {
+  throw new Error(
+    "Please specify the name of the database using environment variable DBNAME",
+  );
 }
 
 const PORT = process.env.PORT;
 const RABBIT = process.env.RABBIT;
+const DBHOST = process.env.DBHOST;
+const DBNAME = process.env.DBNAME;
 
 //
 // Application entry point.
 //
 async function main() {
-	
-    console.log(`Connecting to RabbitMQ server at ${RABBIT}.`);
+  console.log(`Connecting to RabbitMQ server at ${RABBIT}.`);
 
-    const messagingConnection = await amqp.connect(RABBIT); // Connects to the RabbitMQ server.
-    
-    console.log("Connected to RabbitMQ.");
+  const messagingConnection = await amqp.connect(RABBIT); // Connects to the RabbitMQ server.
 
-    const messageChannel = await messagingConnection.createChannel(); // Creates a RabbitMQ messaging channel.
+  console.log("Connected to RabbitMQ.");
 
-	await messageChannel.assertExchange("viewed", "fanout"); // Asserts that we have a "viewed" exchange.
+  const messageChannel = await messagingConnection.createChannel(); // Creates a RabbitMQ messaging channel.
 
-    //
-    // Broadcasts the "viewed" message to other microservices.
-    //
-	function broadcastViewedMessage(messageChannel, videoPath) {
-	    console.log(`Publishing message on "viewed" exchange.`);
-	        
-	    const msg = { videoPath: videoPath };
-	    const jsonMsg = JSON.stringify(msg);
-	    messageChannel.publish("viewed", "", Buffer.from(jsonMsg)); // Publishes message to the "viewed" exchange.
-	}
+  //
+  // Connects to the database server.
+  //
+  const client = await mongodb.MongoClient.connect(DBHOST);
 
-    const app = express();
+  //
+  // Gets the database for this microservice.
+  //
+  const db = client.db(DBNAME);
 
-    app.get("/video", async (req, res) => { // Route for streaming video.
+  //
+  // Gets the collection of videos.
+  //
+  const videos = db.collection("videos");
 
-        const videoPath = "./videos/SampleVideo_1280x720_1mb.mp4";
-        const stats = await fs.promises.stat(videoPath);
+  await messageChannel.assertExchange("viewed", "fanout"); // Asserts that we have a "viewed" exchange.
 
-        res.writeHead(200, {
-            "Content-Length": stats.size,
-            "Content-Type": "video/mp4",
-        });
-    
-        fs.createReadStream(videoPath).pipe(res);
+  //
+  // Broadcasts the "viewed" message to other microservices.
+  //
+  function broadcastViewedMessage(messageChannel, videoPath) {
+    console.log(`Publishing message on "viewed" exchange.`);
 
-        broadcastViewedMessage(messageChannel, videoPath); // Sends the "viewed" message to indicate this video has been watched.
+    const msg = { videoPath: videoPath };
+    const jsonMsg = JSON.stringify(msg);
+    messageChannel.publish("viewed", "", Buffer.from(jsonMsg)); // Publishes message to the "viewed" exchange.
+  }
+
+  const app = express();
+
+  app.get("/video", async (req, res) => {
+    // Route for streaming video.
+
+    if (!req.query.id) return res.status(400).send("Missing video ID");
+
+    // Get video path from database
+    const videoId = req.query.id;
+    const video = await videos.findOne({ _id: videoId });
+    console.log(video);
+    if (!video) return res.status(404).send("Video not found");
+
+    const videoPath = "./videos/" + video.videoPath;
+    const stats = await fs.promises.stat(videoPath);
+
+    res.writeHead(200, {
+      "Content-Length": stats.size,
+      "Content-Type": "video/mp4",
     });
 
-    app.listen(PORT, () => {
-        console.log("Microservice online.");
-    });
+    fs.createReadStream(videoPath).pipe(res);
+
+    broadcastViewedMessage(messageChannel, videoPath); // Sends the "viewed" message to indicate this video has been watched.
+  });
+
+  app.listen(PORT, () => {
+    console.log("Microservice online.");
+  });
 }
 
-main()
-    .catch(err => {
-        console.error("Microservice failed to start.");
-        console.error(err && err.stack || err);
-    });
+main().catch((err) => {
+  console.error("Microservice failed to start.");
+  console.error((err && err.stack) || err);
+});

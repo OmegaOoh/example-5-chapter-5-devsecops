@@ -1,6 +1,5 @@
-version: '3'
+version: "3"
 services:
-
   db:
     image: mongo:7.0.0
     container_name: db
@@ -18,7 +17,7 @@ services:
 
   video-streaming:
     image: video-streaming
-    build: 
+    build:
       context: ./video-streaming
       dockerfile: Dockerfile-dev
     container_name: video-streaming
@@ -32,13 +31,15 @@ services:
       - PORT=80
       - RABBIT=amqp://guest:guest@rabbit:5672
       - NODE_ENV=development
+      - DBHOST=mongodb://db:27017
+      - DBNAME=video-streaming
     depends_on:
       - rabbit
     restart: "no"
 
   history:
     image: history
-    build: 
+    build:
       context: ./history
       dockerfile: Dockerfile-dev
     container_name: history
@@ -46,7 +47,7 @@ services:
       - /tmp/history/npm-cache:/root/.npm:z
       - ./history/src:/usr/src/app/src:z
     ports:
-     - "4002:80"
+      - "4002:80"
     environment:
       - PORT=80
       - RABBIT=amqp://guest:guest@rabbit:5672
@@ -60,7 +61,7 @@ services:
 
   recommendations:
     image: recommendations
-    build: 
+    build:
       context: ./recommendations
       dockerfile: Dockerfile-dev
     container_name: recommendations
@@ -68,7 +69,7 @@ services:
       - /tmp/recommendations/npm-cache:/root/.npm:z
       - ./recommendations/src:/usr/src/app/src:z
     ports:
-     - "4003:80"
+      - "4003:80"
     environment:
       - PORT=80
       - RABBIT=amqp://guest:guest@rabbit:5672
