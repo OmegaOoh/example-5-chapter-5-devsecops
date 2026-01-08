@@ -82,7 +82,6 @@ async function main() {
     // Get video path from database
     const videoId = req.query.id;
     const video = await videos.findOne({ _id: videoId });
-    console.log(video);
     if (!video) return res.status(404).send("Video not found");
 
     const videoPath = "./videos/" + video.videoPath;
