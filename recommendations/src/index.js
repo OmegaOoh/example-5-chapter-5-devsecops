@@ -65,13 +65,28 @@ async function main() {
     async function consumeViewedMessage(msg) {
 
         const parsedMsg = JSON.parse(msg.content.toString()); // Parse the JSON message.
+
+        const filePath = parsedMsg.videoPath;
+        // Strip into filename
+        const filename = filePath.split('/').pop();
+        // Check for video existence in db
+        const video = await videosCollection.findOne({ "video": filename });
+        if (video === null) {
+          // Create new record.
+          await videosCollection.insertOne({ "video": filename, "views": 1 });
+        } else {
+          // Update views
+          await videosCollection.updateOne({ "video": filename }, { $inc: { "views": 1 } });
+        }
         
-        console.log("Received a 'viewed' message:");
-        console.log(JSON.stringify(parsedMsg, null, 4)); // JUST PRINTING THE RECEIVED MESSAGE.
-
-        // ... ADD YOUR CODE HERE TO PROCESS THE MESSAGE ...
-
-        console.log("Acknowledging message was handled.");
+        // Recommend most viewed video
+          const mostViewed = await videosCollection.find().sort({ "views": -1 }).limit(2).toArray();
+          if (mostViewed.length == 1 || mostViewed.video != filename )
+            console.log(`Recommended ${mostViewed[0].video}`);
+          else if (mostViewed.length > 1 )
+            console.log(`Recommended ${mostViewed[1].video}`);
+          else
+            console.log(`No recommendations available`);
                 
         messageChannel.ack(msg); // If there is no error, acknowledge the message.
     };
